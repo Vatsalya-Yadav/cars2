@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Two Cars 3D - Final</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.139.0/build/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        :root {
+            --bgColorStart: #3a3a4a; /* Darker blue/purple */
+            --bgColorEnd: #1f1f2a;
+            --uiBgColor: rgba(20, 20, 30, 0.8);
+            --textColor: #e8e8f0;
+            --highlightColor: #66ccff;
+            --accentColor1: #44aaff; /* Left Car */
+            --accentColor2: #ff7733; /* Right Car */
+            --successColor: #66bb6a;
+            --failColor: #ff5566;
+            --fontFamily: 'Poppins', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(180deg, var(--bgColorStart) 0%, var(--bgColorEnd) 100%);
+            font-family: var(--fontFamily);
+            overflow: hidden;
+            color: var(--textColor);
+        }
+
+        #gameCanvas {
+            /* Canvas takes full space, background handled by body/sky */
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: pointer;
+        }
+
+        /* --- UI Elements --- */
+        .ui-panel { /* Common style for overlay panels */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--uiBgColor);
+            display: flex; /* Use flex for centering */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            color: var(--textColor);
+            backdrop-filter: blur(6px);
+            opacity: 0; /* Start hidden */
+            visibility: hidden; /* Start hidden */
+            transition: opacity 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0.5s;
+            padding: 20px;
+            box-sizing: border-box; /* Include padding in width/height */
+        }
+         .ui-panel.visible {
+            opacity: 1;
+            visibility: visible;
+         }
+
+        #scoreDisplay {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 34px;
+            font-weight: 600;
+            z-index: 1;
+            text-align: center;
+            padding: 10px 25px;
+            border-radius: 15px;
+            background-color: rgba(0, 0, 0, 0.65);
+            text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 5px 12px rgba(0,0,0,0.35);
+            transition: transform 0.2s ease-out, background-color 0.2s; /* Add transition for score effect */
+        }
+        #scoreDisplay.score-increase { /* Class added on score increase */
+            transform: translateX(-50%) scale(1.1);
+            background-color: rgba(255, 255, 100, 0.3); /* Yellow flash */
+        }
+
+
+        #gameOverScreen h2 {
+            font-size: 56px;
+            font-weight: 700;
+            margin-bottom: 25px;
+            text-shadow: 3px 3px 8px rgba(0,0,0,0.8);
+            color: var(--failColor);
+        }
+
+        #gameOverScreen p {
+            font-size: 30px;
+            color: #ccc;
+            margin-bottom: 45px;
+            font-weight: 400;
+        }
+
+        .ui-button { /* Common button style */
+            color: white;
+            padding: 16px 35px;
+            border: none;
+            font-size: 22px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            margin-top: 15px;
+        }
+         .ui-button:hover {
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            transform: translateY(-3px);
+        }
+        .ui-button:active {
+             transform: translateY(0px);
+             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        #restartButton {
+            background: linear-gradient(145deg, var(--successColor), #4caf50);
+        }
+         #restartButton:hover {
+             background: linear-gradient(145deg, #5cb85c, #43a047);
+         }
+
+        #muteButton {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        #muteButton:hover {
+             background-color: rgba(0, 0, 0, 0.8);
+             transform: scale(1.1);
+        }
+
+        #muteButton img {
+            width: 55%;
+            height: 55%;
+            filter: invert(0.9);
+        }
+
+        #instructions {
+             background-color: rgba(30, 30, 50, 0.9); /* Use variable */
+             border-radius: 20px;
+             padding: 35px 40px;
+             max-width: 600px; /* Limit width on larger screens */
+             width: 90%; /* Responsive width */
+             box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        #instructions h2 {
+            font-size: 34px;
+            font-weight: 700;
+            margin-bottom: 25px;
+            color: var(--highlightColor);
+        }
+
+        #instructions p, #instructions ul {
+            font-size: 18px;
+            margin-bottom: 20px;
+            line-height: 1.7;
+            font-weight: 400;
+        }
+         #instructions ul { list-style: none; padding: 0; }
+         #instructions li { margin-bottom: 12px; }
+         #instructions strong { color: #ffd700; font-weight: 600; }
+         #instructions span { font-weight: 600; }
+
+        #closeInstructionsButton {
+             background: linear-gradient(145deg, #5c6bc0, #3f51b5); /* Indigo gradient */
+        }
+         #closeInstructionsButton:hover {
+             background: linear-gradient(145deg, #4e5ca1, #3646a0);
+         }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+             #instructions h2 { font-size: 28px; }
+             #instructions p, #instructions ul { font-size: 16px; }
+             .ui-button { font-size: 20px; padding: 14px 30px; } /* Adjust button size */
+             #scoreDisplay { font-size: 28px; padding: 8px 20px; top: 20px;}
+             #gameOverScreen h2 { font-size: 44px; }
+             #gameOverScreen p { font-size: 24px; }
+             #muteButton { width: 45px; height: 45px; top: 20px; right: 20px;}
+        }
+        @media (max-width: 480px){
+            #scoreDisplay { font-size: 22px; top: 15px; padding: 7px 15px; border-radius: 10px;}
+            #muteButton { width: 40px; height: 40px; top: 15px; right: 15px;}
+            #gameOverScreen h2 { font-size: 36px; }
+            #gameOverScreen p { font-size: 20px; margin-bottom: 30px;}
+            .ui-button { font-size: 18px; padding: 12px 25px; border-radius: 10px;}
+            #instructions { padding: 25px 30px; border-radius: 15px;}
+            #instructions h2 { font-size: 24px; margin-bottom: 20px;}
+            #instructions p, #instructions ul { font-size: 14px; line-height: 1.6; margin-bottom: 15px;}
+            #instructions li { margin-bottom: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="scoreDisplay">Score: 0</div>
+
+    <div id="gameOverScreen" class="ui-panel"> <h2>Game Over</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button id="restartButton" class="ui-button">Restart</button>
+    </div>
+
+    <div id="instructions" class="ui-panel visible"> <h2>How to Play (4 Lanes!)</h2>
+      <p>Control two cars on a 4-lane road! Collect <span style="color:#55ff55;">Circles</span>, avoid <span style="color:#ff5555;">Squares</span>.</p>
+      <p>Hitting a <span style="color:#aa6633;">Mud Patch</span> will temporarily slow you down.</p>
+      <ul>
+         <li><strong>PC Controls:</strong></li>
+         <li>Left Car (Lanes 1 & 2): <strong>A/D</strong> (Switch), <strong>W/S</strong> (Speed)</li>
+         <li>Right Car (Lanes 3 & 4): <strong>←/→</strong> (Switch), <strong>↑/↓</strong> (Speed)</li>
+         <li><strong>Mobile Controls:</strong></li>
+         <li>Tap <strong>Left Half</strong>: Switch Left Car (Lanes 1 & 2)</li>
+         <li>Tap <strong>Right Half</strong>: Switch Right Car (Lanes 3 & 4)</li>
+      </ul>
+      <p>Game speed increases over time. Good luck!</p>
+      <button id="closeInstructionsButton" class="ui-button">Play</button>
+    </div>
+
+     <div id="muteButton">
+        <img id="muteIcon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='24px' height='24px'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z'/%3E%3C/svg%3E" alt="Mute/Unmute">
+    </div>
+
+
+    <script>
+        // --- Game Setup ---
+        let scene, camera, renderer, canvas, skySphere;
+        let carLeft, carRight;
+        let obstacles = [];
+        let score = 0;
+        let gameRunning = false;
+        let animationId;
+        let isMuted = false;
+        let windowWidth = window.innerWidth;
+        let windowHeight = window.innerHeight;
+        let roadSegments = [];
+        let laneMarkings = [];
+
+        // --- Constants ---
+        const baseLaneWidth = 1.6; // Slightly wider lanes
+        const numLanes = 4;
+        const totalRoadWidth = baseLaneWidth * numLanes;
+        const lanePositions = [];
+        for (let i = 0; i < numLanes; i++) {
+            lanePositions.push(-(totalRoadWidth / 2) + baseLaneWidth * (i + 0.5));
+        }
+        const leftCarLanes = [lanePositions[0], lanePositions[1]];
+        const rightCarLanes = [lanePositions[2], lanePositions[3]];
+
+        const carWidth = baseLaneWidth * 0.45; // Slightly narrower cars
+        const carHeight = 0.4;
+        const carDepth = 1.3;
+        const obstacleSize = baseLaneWidth * 0.4;
+        const roadLength = 70; // Longer visual road
+        const segmentLength = 5;
+        const cameraDistance = 7.5; // Camera slightly further back
+        const cameraHeight = 4.2; // Camera slightly higher
+
+        // --- Lane Position Logic ---
+        let carLeftTargetX = leftCarLanes[0];
+        let carRightTargetX = rightCarLanes[0];
+
+
+        // --- Balance Tuning ---
+        const baseSpeed = 0.05;
+        const speedIncreaseRate = 0.0004; // Slower speed increase
+        const playerSpeedBoost = 0.035; // Slightly more boost
+        const playerSpeedBrake = 0.025; // Slightly more brake
+        const maxSpeedMultiplier = 1.7;
+        const minSpeedMultiplier = 0.6; // Allow slightly slower min speed
+        let currentSpeedMultiplier = 1.0;
+        let effectiveGameSpeed = baseSpeed;
+        let slowDownTimer = 0;
+        const slowDownDuration = 1.3; // Shorter slowdown
+        const slowDownFactor = 0.45; // Less severe slowdown
+
+        // Obstacle spawning variables
+        let obstacleSpawnTimer = 0;
+        let baseObstacleSpawnRate = 1.5; // Slightly longer initial spawn time
+        let currentObstacleSpawnRate = baseObstacleSpawnRate;
+        const minObstacleSpawnRate = 0.3; // Cap minimum spawn rate
+        const spawnRateDecreaseFactor = 0.996; // Slower decrease in spawn rate
+
+        // Obstacle probability
+        const circleProb = 0.60; // 60%
+        const squareProb = 0.30; // 30% (Total 90%)
+        // SlowdownProb is 10% (remaining)
+
+
+        // Key state tracking
+        const keysPressed = {};
+
+        // DOM Elements
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const restartButton = document.getElementById('restartButton');
+        const muteButton = document.getElementById('muteButton');
+        const muteIcon = document.getElementById('muteIcon');
+        const instructionsScreen = document.getElementById('instructions');
+        const closeInstructionsButton = document.getElementById('closeInstructionsButton'); // Corrected ID
+
+        // Mute Icons (SVG embedded)
+        const muteIconSVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='24px' height='24px'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z'/%3E%3C/svg%3E";
+        const unmuteIconSVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='24px' height='24px'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z'/%3E%3C/svg%3E";
+
+
+        // --- Colors --- (Using CSS Variables now, but keep JS for materials)
+        const carLeftColor = 0x44aaff;
+        const carRightColor = 0xff7733;
+        const circleColor = 0x55ff55;
+        const squareColor = 0xff5555;
+        const slowDownColor = 0xaa6633;
+        const roadColor = 0x404045;
+        const segmentColors = [0x4a4a50, 0x505055];
+        const laneMarkingColor = 0xdddddd;
+
+        // Sky Gradient Colors
+        const skyColorTop = new THREE.Color(0x66aaff); // Lighter blue top
+        const skyColorBottom = new THREE.Color(0x223366); // Darker blue/purple bottom
+
+
+        // --- Sound Effects (Tone.js) ---
+        let toneStarted = false;
+        async function startTone() {
+            if (!toneStarted && Tone.context.state !== 'running') {
+                 await Tone.start();
+                 toneStarted = true;
+                 console.log("AudioContext started");
+                 setupSounds(); // Ensure sounds are ready after context starts
+            }
+        }
+        let collisionSound, collectSound, slowDownSound;
+        function setupSounds() {
+             if (!toneStarted) return; // Don't setup if context not running
+             if (!collisionSound) { collisionSound = new Tone.Synth({ oscillator: { type: 'square' }, volume: -3, envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination(); }
+             if (!collectSound) { collectSound = new Tone.Synth({ oscillator: { type: 'triangle' }, volume: -8, envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(); } // Triangle wave
+             if (!slowDownSound) { slowDownSound = new Tone.NoiseSynth({ noise: { type: 'brown' }, volume: -12, envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.1 } }).toDestination(); }
+        }
+        function playCollisionSound() { if (!isMuted && toneStarted && collisionSound) collisionSound.triggerAttackRelease("B2", "8n"); } // Lower pitch
+        function playCollectSound() { if (!isMuted && toneStarted && collectSound) collectSound.triggerAttackRelease("C5", "16n"); } // Higher pitch
+        function playSlowDownSound() { if (!isMuted && toneStarted && slowDownSound) slowDownSound.triggerAttackRelease("2n"); } // Longer duration
+
+        // --- Clock for Delta Time ---
+        const clock = new THREE.Clock();
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            // Fog matches sky gradient better
+            scene.fog = new THREE.Fog(skyColorBottom, cameraDistance + 15, cameraDistance + 50);
+
+            camera = new THREE.PerspectiveCamera(65, windowWidth / windowHeight, 0.1, 1000); // Increased far plane for sky
+            camera.position.set(0, cameraHeight, cameraDistance);
+            camera.lookAt(0, 1, 0);
+
+            canvas = document.getElementById('gameCanvas');
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true }); // Alpha true for body background
+            renderer.setSize(windowWidth, windowHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; // Better color grading
+            renderer.toneMappingExposure = 0.9; // Adjust exposure
+
+            createLights();
+            createSky(); // Create the sky sphere
+            createCars();
+            createRoad();
+            addEventListeners();
+            // setupSounds(); // Moved to startTone callback
+
+            instructionsScreen.classList.add('visible'); // Show instructions initially
+        }
+
+         function createLights() {
+             // Softer ambient light
+            const hemiLight = new THREE.HemisphereLight(0xbcdaff, 0x678ab7, 1.0); // Adjusted colors and intensity
+            scene.add(hemiLight);
+
+             // Key light (sun)
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); // Slightly stronger intensity
+            dirLight.position.set(10, 15, 10);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048; // Higher res shadows
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.top = 15; // Adjust shadow frustum
+            dirLight.shadow.camera.bottom = -15;
+            dirLight.shadow.camera.left = -15;
+            dirLight.shadow.camera.right = 15;
+            dirLight.shadow.camera.near = 0.1;
+            dirLight.shadow.camera.far = 50;
+            dirLight.shadow.bias = -0.0005; // Reduce shadow acne
+            scene.add(dirLight);
+
+             // Optional Fill light (very subtle)
+             // const fillLight = new THREE.DirectionalLight(0xaaaaFF, 0.1);
+             // fillLight.position.set(-5, 5, -5);
+             // scene.add(fillLight);
+        }
+
+        function createSky() {
+            // Use a large sphere with a custom gradient shader
+            const skyGeometry = new THREE.SphereGeometry(500, 32, 16); // Large sphere
+
+            const skyMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    topColor: { value: skyColorTop },
+                    bottomColor: { value: skyColorBottom },
+                    offset: { value: 100 }, // Controls gradient position relative to horizon
+                    exponent: { value: 0.8 } // Controls gradient sharpness
+                },
+                vertexShader: `
+                    varying vec3 vWorldPosition;
+                    void main() {
+                        vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
+                        vWorldPosition = worldPosition.xyz;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 topColor;
+                    uniform vec3 bottomColor;
+                    uniform float offset;
+                    uniform float exponent;
+                    varying vec3 vWorldPosition;
+                    void main() {
+                        float h = normalize( vWorldPosition + offset ).y;
+                        // Smoothstep for a nicer gradient transition
+                        float t = max( pow( max( h , 0.0), exponent ), 0.0 );
+                        // Mix colors based on height
+                        gl_FragColor = vec4( mix( bottomColor, topColor, t ), 1.0 );
+                    }
+                `,
+                side: THREE.BackSide // Render inside of the sphere
+            });
+
+            skySphere = new THREE.Mesh(skyGeometry, skyMaterial);
+            scene.add(skySphere);
+        }
+
+
+        function createCars() {
+            // Use standard materials but tune roughness for a smoother look
+            const carBodyGeometry = new THREE.BoxGeometry(carWidth, carHeight, carDepth); // Keep as box for simplicity
+            const lightGeometry = new THREE.BoxGeometry(carWidth * 0.2, carHeight * 0.3, 0.1);
+
+            // Softer, less metallic materials
+            const carLeftMaterial = new THREE.MeshStandardMaterial({ color: carLeftColor, roughness: 0.3, metalness: 0.1 });
+            const carRightMaterial = new THREE.MeshStandardMaterial({ color: carRightColor, roughness: 0.3, metalness: 0.1 });
+            const headLightMaterial = new THREE.MeshStandardMaterial({ color: 0xffffdd, emissive: 0xffffaa, emissiveIntensity: 0.8 }); // Brighter emissive
+            const tailLightMaterial = new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0xff2222, emissiveIntensity: 0.8 }); // Brighter emissive
+
+            // Build Left Car
+            carLeft = new THREE.Group();
+            const bodyLeft = new THREE.Mesh(carBodyGeometry, carLeftMaterial); bodyLeft.castShadow = true; bodyLeft.receiveShadow = true; carLeft.add(bodyLeft);
+            const headLightLeft1 = new THREE.Mesh(lightGeometry, headLightMaterial); headLightLeft1.position.set(-carWidth * 0.3, carHeight * 0.1, -carDepth / 2 - 0.01); carLeft.add(headLightLeft1); // Slightly inset
+            const headLightLeft2 = headLightLeft1.clone(); headLightLeft2.position.x = carWidth * 0.3; carLeft.add(headLightLeft2);
+            const tailLightLeft1 = new THREE.Mesh(lightGeometry, tailLightMaterial); tailLightLeft1.position.set(-carWidth * 0.3, carHeight * 0.1, carDepth / 2 + 0.01); carLeft.add(tailLightLeft1); // Slightly outset
+            const tailLightLeft2 = tailLightLeft1.clone(); tailLightLeft2.position.x = carWidth * 0.3; carLeft.add(tailLightLeft2);
+
+            // Build Right Car (Cloning materials is fine here)
+            carRight = carLeft.clone(); // Clone the whole group
+            carRight.traverse((child) => { // Apply the right car material to the body
+                 if (child.isMesh && child.material === carLeftMaterial) {
+                     child.material = carRightMaterial;
+                     child.castShadow = true; // Ensure cloned parts cast shadows
+                     child.receiveShadow = true;
+                 } else if (child.isMesh) {
+                     child.castShadow = true; // Ensure lights also cast/receive shadows if needed (usually off for lights)
+                     child.receiveShadow = false;
+                 }
+            });
+
+
+            // Initial Positioning
+            carLeft.position.set(leftCarLanes[0], carHeight / 2, 0);
+            carRight.position.set(rightCarLanes[0], carHeight / 2, 0);
+            carLeftTargetX = leftCarLanes[0];
+            carRightTargetX = rightCarLanes[0];
+            scene.add(carLeft);
+            scene.add(carRight);
+        }
+
+
+        function createRoad() {
+            // --- Road Segments ---
+            roadSegments.forEach(segment => scene.remove(segment));
+            roadSegments = [];
+            const segmentGeometry = new THREE.PlaneGeometry(totalRoadWidth + baseLaneWidth * 1.5, segmentLength); // Even wider shoulders
+            for (let i = 0; i < roadLength / segmentLength; i++) {
+                const segmentMaterial = new THREE.MeshStandardMaterial({
+                    color: segmentColors[i % segmentColors.length],
+                    roughness: 0.85, metalness: 0.05, side: THREE.DoubleSide, // Less reflective road
+                });
+                const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
+                segment.rotation.x = -Math.PI / 2;
+                segment.position.set(0, 0, -i * segmentLength + segmentLength / 2);
+                segment.receiveShadow = true;
+                roadSegments.push(segment);
+                scene.add(segment);
+            }
+
+            // --- Lane Markings ---
+            laneMarkings.forEach(marker => scene.remove(marker));
+            laneMarkings = [];
+            const markingMaterial = new THREE.MeshStandardMaterial({ color: laneMarkingColor, roughness: 0.8 });
+            // Dashed lines: shorter geometry, more instances needed if desired
+            const markingGeometry = new THREE.BoxGeometry(0.06, 0.02, segmentLength * 0.6); // Dashed line segment
+            const markingGap = segmentLength * 0.4; // Gap between dashes
+
+            for (let j = 1; j < numLanes; j++) {
+                const markingX = lanePositions[j-1] + baseLaneWidth / 2;
+                 // Create markings for the visible road length
+                for (let i = 0; i < roadLength / segmentLength; i++) {
+                     // Add dashes within each segment
+                    // Note: Simple continuous lines are easier to manage with wrapping.
+                    // Reverting to continuous lines for simplicity here.
+                    const continuousMarkingGeom = new THREE.BoxGeometry(0.05, 0.02, segmentLength);
+                    const marker = new THREE.Mesh(continuousMarkingGeom, markingMaterial);
+                    marker.position.set(markingX, 0.01, -i * segmentLength + segmentLength / 2);
+                    marker.receiveShadow = true;
+                    laneMarkings.push(marker);
+                    scene.add(marker);
+                }
+            }
+        }
+
+        function addEventListeners() {
+            window.addEventListener('resize', onWindowResize, false);
+            document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keyup', handleKeyUp);
+            // Use async function to ensure tone starts before game logic
+            const startGameHandler = async () => {
+                await startTone();
+                startGame();
+            };
+            const closeInstructionsHandler = async () => {
+                 await startTone();
+                 instructionsScreen.classList.remove('visible'); // Hide instructions
+                 // Add a small delay before starting game for smoother transition
+                 setTimeout(startGame, 300); // 300ms delay
+            };
+
+            restartButton.addEventListener('click', startGameHandler);
+            muteButton.addEventListener('click', toggleMute);
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            closeInstructionsButton.addEventListener('click', closeInstructionsHandler);
+        }
+
+        function onWindowResize() {
+            windowWidth = window.innerWidth;
+            windowHeight = window.innerHeight;
+            camera.aspect = windowWidth / windowHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(windowWidth, windowHeight);
+        }
+
+        function handleKeyDown(event) {
+             if (!gameRunning && !instructionsScreen.classList.contains('visible')) return; // Allow controls only if game running or instructions visible (for closing)
+             if (instructionsScreen.classList.contains('visible') && event.key === 'Enter') {
+                 closeInstructionsButton.click(); // Allow closing instructions with Enter
+                 return;
+             }
+              if (!gameRunning) return; // If instructions not visible and game not running, ignore
+
+             keysPressed[event.key.toLowerCase()] = true;
+             switch (event.key.toLowerCase()) {
+                case 'a': carLeftTargetX = leftCarLanes[0]; break;
+                case 'd': carLeftTargetX = leftCarLanes[1]; break;
+                case 'arrowleft': carRightTargetX = rightCarLanes[0]; break;
+                case 'arrowright': carRightTargetX = rightCarLanes[1]; break;
+                case 'escape': if(gameRunning) endGame(); break;
+             }
+        }
+         function handleKeyUp(event) {
+             keysPressed[event.key.toLowerCase()] = false;
+         }
+
+        function handleTouchStart(event) {
+             if (instructionsScreen.classList.contains('visible')) {
+                 // If instructions are visible, treat tap as closing them
+                 closeInstructionsButton.click();
+                 return;
+             }
+            if (!gameRunning) return;
+            startTone(); // Ensure tone started on interaction
+            event.preventDefault();
+            const touchX = event.touches[0].clientX;
+            const halfWidth = windowWidth / 2;
+
+            if (touchX < halfWidth) {
+                 carLeftTargetX = carLeft.position.x === leftCarLanes[0] ? leftCarLanes[1] : leftCarLanes[0];
+            } else {
+                 carRightTargetX = carRight.position.x === rightCarLanes[0] ? rightCarLanes[1] : rightCarLanes[0];
+            }
+        }
+
+        function updateCarPositions(deltaTime) {
+            const lerpFactor = Math.min(15 * deltaTime, 1.0); // Even smoother/faster lerp
+
+            carLeft.position.x = THREE.MathUtils.lerp(carLeft.position.x, carLeftTargetX, lerpFactor);
+            if (Math.abs(carLeft.position.x - carLeftTargetX) < 0.005) carLeft.position.x = carLeftTargetX;
+
+            carRight.position.x = THREE.MathUtils.lerp(carRight.position.x, carRightTargetX, lerpFactor);
+            if (Math.abs(carRight.position.x - carRightTargetX) < 0.005) carRight.position.x = carRightTargetX;
+        }
+
+
+        function createObstacle() {
+            let type;
+            const rand = Math.random();
+            if (rand < circleProb) type = 'circle';
+            else if (rand < circleProb + squareProb) type = 'square';
+            else type = 'slowdown';
+
+            let geometry, material, obstacle;
+            const yPos = obstacleSize / 2; // Base Y position
+
+             // Use Sphere for circles
+            if (type === 'circle') {
+                geometry = new THREE.SphereGeometry(obstacleSize / 2, 20, 16); // Smoother sphere
+                material = new THREE.MeshStandardMaterial({ color: circleColor, roughness: 0.4, metalness: 0.1 });
+                obstacle = new THREE.Mesh(geometry, material);
+            } else if (type === 'square') {
+                geometry = new THREE.BoxGeometry(obstacleSize, obstacleSize, obstacleSize); // Keep square as box
+                material = new THREE.MeshStandardMaterial({ color: squareColor, roughness: 0.5, metalness: 0.1 });
+                obstacle = new THREE.Mesh(geometry, material);
+                obstacle.rotation.y = Math.random() * Math.PI * 0.5; // Less extreme random rotation
+            } else { // slowdown
+                geometry = new THREE.BoxGeometry(baseLaneWidth * 0.8, 0.05, baseLaneWidth * 0.8); // Flat patch, slightly smaller
+                material = new THREE.MeshStandardMaterial({ color: slowDownColor, roughness: 0.9, metalness: 0 });
+                obstacle = new THREE.Mesh(geometry, material);
+                // yPos = 0.025; // Position flat on the ground
+            }
+
+            obstacle.castShadow = true;
+            obstacle.receiveShadow = true;
+            obstacle.userData.type = type;
+
+            const targetLaneIndex = Math.floor(Math.random() * numLanes);
+            const targetLaneX = lanePositions[targetLaneIndex];
+            const spawnZ = Math.min(-roadLength * 0.8, -30); // Spawn even further back
+            obstacle.position.set(targetLaneX, yPos, spawnZ);
+
+            scene.add(obstacle);
+            obstacles.push(obstacle);
+        }
+
+
+        function updateSpeed(deltaTime) {
+             // Base speed increases, clamped at a max effective speed
+             effectiveGameSpeed += speedIncreaseRate * deltaTime;
+             effectiveGameSpeed = Math.min(effectiveGameSpeed, baseSpeed * 3.0); // Cap base speed increase
+
+             if (slowDownTimer <= 0) {
+                 let targetMultiplier = 1.0;
+                 // More responsive speed adjustment lerping
+                 const speedAdjustLerp = 8 * deltaTime;
+                 if (keysPressed['w'] || keysPressed['arrowup']) {
+                      currentSpeedMultiplier = THREE.MathUtils.lerp(currentSpeedMultiplier, maxSpeedMultiplier, speedAdjustLerp);
+                 } else if (keysPressed['s'] || keysPressed['arrowdown']) {
+                      currentSpeedMultiplier = THREE.MathUtils.lerp(currentSpeedMultiplier, minSpeedMultiplier, speedAdjustLerp);
+                 } else {
+                     // Gradually return to 1.0 multiplier if no keys pressed
+                     currentSpeedMultiplier = THREE.MathUtils.lerp(currentSpeedMultiplier, 1.0, speedAdjustLerp * 0.5);
+                 }
+             } else {
+                 currentSpeedMultiplier = slowDownFactor; // Apply slowdown directly
+                 slowDownTimer -= deltaTime;
+                 if(slowDownTimer < 0) slowDownTimer = 0;
+             }
+
+             // Clamp the final multiplier just in case
+             currentSpeedMultiplier = THREE.MathUtils.clamp(currentSpeedMultiplier, minSpeedMultiplier, maxSpeedMultiplier);
+
+             const finalSpeed = effectiveGameSpeed * currentSpeedMultiplier;
+             // Adjust spawn rate based on final speed for better correlation
+             currentObstacleSpawnRate = baseObstacleSpawnRate / (finalSpeed / baseSpeed);
+             currentObstacleSpawnRate = Math.max(currentObstacleSpawnRate, minObstacleSpawnRate);
+
+             return finalSpeed;
+        }
+
+
+        function moveObjects(deltaTime, currentFrameSpeed) {
+            // Use consistent movement based on delta time
+            const distance = currentFrameSpeed * (deltaTime * 60); // Speed normalized to 60fps
+
+            // Move obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].position.z += distance;
+                if (obstacles[i].position.z > cameraDistance + 10) { // Increased removal distance
+                    scene.remove(obstacles[i]);
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            // Move road segments and lane markings using wrap-around
+            const wrapZ = -roadLength; // Point to wrap to
+            const checkZ = segmentLength / 2; // Point to check against
+
+            roadSegments.forEach(segment => {
+                segment.position.z += distance;
+                if (segment.position.z > checkZ) {
+                    segment.position.z += wrapZ;
+                }
+            });
+
+             laneMarkings.forEach(marker => {
+                marker.position.z += distance;
+                if (marker.position.z > checkZ) {
+                    marker.position.z += wrapZ;
+                }
+            });
+
+             // Move sky sphere slightly with camera for parallax illusion (optional, can be subtle)
+             // skySphere.position.y = camera.position.y * 0.1;
+             // skySphere.position.z = camera.position.z * 0.1;
+        }
+
+        function checkCollisions() {
+            // More efficient check: only create Box3 if obstacle is close
+            const carBoxLeft = new THREE.Box3();
+            const carBoxRight = new THREE.Box3();
+            const obstacleBox = new THREE.Box3(); // Reuse one box
+
+            carBoxLeft.setFromObject(carLeft); // Update car boxes once per frame
+            carBoxRight.setFromObject(carRight);
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
+                // Broad phase Z check
+                if (Math.abs(obstacle.position.z - carLeft.position.z) > carDepth + obstacleSize) continue;
+
+                obstacleBox.setFromObject(obstacle); // Update obstacle box only if close
+
+                let collided = false;
+                if (carBoxLeft.intersectsBox(obstacleBox)) collided = true;
+                else if (carBoxRight.intersectsBox(obstacleBox)) collided = true;
+
+                if (collided) {
+                    const type = obstacle.userData.type;
+                    if (type === 'square') {
+                        playCollisionSound(); endGame(); return;
+                    } else if (type === 'circle') {
+                        score += 10;
+                        // Score animation effect
+                        scoreDisplay.textContent = `Score: ${score}`;
+                        scoreDisplay.classList.add('score-increase');
+                        setTimeout(() => scoreDisplay.classList.remove('score-increase'), 200); // Remove class after animation
+
+                        playCollectSound(); scene.remove(obstacle); obstacles.splice(i, 1);
+                    } else if (type === 'slowdown') {
+                         if (slowDownTimer <= 0.05) { slowDownTimer = slowDownDuration; playSlowDownSound(); }
+                         // Allow patch to pass through
+                    }
+                }
+            }
+        }
+
+
+        function animate() {
+            if (!gameRunning) return;
+            animationId = requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+
+            // Limit delta time to prevent large jumps if tabbed away
+            const dt = Math.min(deltaTime, 0.05); // Max delta time of 50ms
+
+            const currentFrameSpeed = updateSpeed(dt);
+            updateCarPositions(dt);
+            moveObjects(dt, currentFrameSpeed);
+            checkCollisions();
+
+            // Spawn obstacles based on potentially adjusted delta time
+            obstacleSpawnTimer -= dt;
+            if (obstacleSpawnTimer <= 0) {
+                createObstacle();
+                obstacleSpawnTimer = currentObstacleSpawnRate;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function startGame() {
+            if (gameRunning) return;
+            console.log("Starting Game...");
+            score = 0; scoreDisplay.textContent = 'Score: 0';
+            effectiveGameSpeed = baseSpeed; currentSpeedMultiplier = 1.0;
+            currentObstacleSpawnRate = baseObstacleSpawnRate;
+            obstacleSpawnTimer = currentObstacleSpawnRate; slowDownTimer = 0;
+
+            carLeftTargetX = leftCarLanes[0];
+            carRightTargetX = rightCarLanes[0];
+            carLeft.position.set(leftCarLanes[0], carHeight / 2, 0);
+            carRight.position.set(rightCarLanes[0], carHeight / 2, 0);
+            // Reset any potential rotation from previous game over effects
+            carLeft.rotation.set(0,0,0);
+            carRight.rotation.set(0,0,0);
+
+
+            obstacles.forEach(obstacle => scene.remove(obstacle)); obstacles = [];
+            for (const key in keysPressed) keysPressed[key] = false;
+
+            gameOverScreen.classList.remove('visible'); // Hide game over screen
+            scoreDisplay.style.display = 'block';
+            muteButton.style.display = 'flex';
+
+            createRoad(); // Recreate road and markings
+
+            gameRunning = true;
+            clock.start(); // Ensure clock is (re)started
+            animate();
+        }
+
+        function endGame() {
+            if (!gameRunning) return;
+            console.log("Game Over!");
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+            clock.stop();
+
+             // Optional: Add a small visual effect on game over (e.g., car spins)
+             // carLeft.rotation.z = Math.PI / 4; carRight.rotation.z = -Math.PI / 4;
+
+            finalScoreDisplay.textContent = score;
+            gameOverScreen.classList.add('visible'); // Show game over screen
+        }
+
+        function toggleMute() {
+            // Ensure tone context is running before changing mute state
+            startTone().then(() => {
+                isMuted = !isMuted;
+                muteIcon.src = isMuted ? muteIconSVG : unmuteIconSVG;
+                muteButton.style.opacity = isMuted ? 0.6 : 1.0;
+                 // Optionally mute/unmute Tone.js master output
+                 // Tone.Destination.mute = isMuted;
+                 console.log("Muted:", isMuted);
+            });
+        }
+
+        // --- Initial Setup Call ---
+        init();
+
+    </script>
+</body>
+</html>
